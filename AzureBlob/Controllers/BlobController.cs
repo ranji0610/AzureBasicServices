@@ -1,4 +1,5 @@
-﻿using AzureBlob.Services;
+﻿using AzureBlob.Models;
+using AzureBlob.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AzureBlob.Controllers
@@ -20,17 +21,28 @@ namespace AzureBlob.Controllers
         }
 
         [HttpGet]
-        public IActionResult AddFile()
+        public IActionResult AddFile(string containerName)
         {            
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> AddFile(IFormFile file)
+        public async Task<IActionResult> AddFile(IFormFile file, string containerName, Blob blob)
         {
             var fileName = Path.GetFileNameWithoutExtension(file.Name) + "_" + Guid.NewGuid() + Path.GetExtension(file.FileName);
-            await _blobService.UploadBlob(fileName, file, "images");
-            return RedirectToAction("Manage");
+            await _blobService.UploadBlob(fileName, file, containerName, blob);
+            return RedirectToAction("Index","Container");
+        }
+
+        public async Task<IActionResult> ViewFile(string name, string containerName)
+        {
+            return Redirect(await _blobService.GetBlob(name, containerName));
+        }
+
+        public async Task<IActionResult> DeleteFile(string name, string containerName)
+        {
+            await _blobService.DeleteBlob(name, containerName);
+            return RedirectToAction("Index", "Container");
         }
     }
 }

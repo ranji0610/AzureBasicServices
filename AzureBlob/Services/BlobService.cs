@@ -1,5 +1,6 @@
 ﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using AzureBlob.Models;
 
 namespace AzureBlob.Services
 {
@@ -31,6 +32,31 @@ namespace AzureBlob.Services
             return Blobs;
         }
 
+        public async Task<List<Blob>> GetAllBlobsWithUrl(string containerName)
+        {
+            List<Blob> Blobs = new();
+            var blobContainerClient = _client.GetBlobContainerClient(containerName);
+            var blobs = blobContainerClient.GetBlobsAsync();
+            await foreach (var blob in blobs)
+            {
+                var blobClient = blobContainerClient.GetBlobClient(blob.Name);
+                var blobModel = new Blob()
+                {
+                    Uri = blobClient.Uri.AbsoluteUri
+                };
+
+                var properties = await blobClient.GetPropertiesAsync();
+                if (properties != null && properties.Value.Metadata.ContainsKey("Title"))
+                {
+                    blobModel.Title = properties.Value.Metadata["Title"];
+                }
+
+                Blobs.Add(blobModel);
+            }
+
+            return Blobs;
+        }
+
         public Task<string> GetBlob(string name, string containerName)
         {
             var blobContainerClient = _client.GetBlobContainerClient(containerName);
@@ -38,7 +64,7 @@ namespace AzureBlob.Services
             return Task.FromResult(blobClient.Uri.AbsoluteUri);
         }
 
-        public Task<bool> UploadBlob(string name, IFormFile file, string containerName)
+        public async Task<bool> UploadBlob(string name, IFormFile file, string containerName, Blob blob)
         {
             var blobContainerClient = _client.GetBlobContainerClient(containerName);
             var blobClient = blobContainerClient.GetBlobClient(name);
@@ -47,14 +73,18 @@ namespace AzureBlob.Services
                 ContentType = file.ContentType
             };
 
-            var result = blobClient.UploadAsync(file.OpenReadStream(), httpHeaders).Result;
-
+            IDictionary<string, string> metaData = new Dictionary<string, string>();
+            metaData[nameof(blob.Title)] = blob.Title;
+            metaData[nameof(blob.Comment)] = blob.Comment;
+            var result = blobClient.UploadAsync(file.OpenReadStream(), httpHeaders, metaData).Result;
+            //metaData.Remove(nameof(blob.Title));
+            //await blobClient.SetMetadataAsync(metaData);
             if (result != null && !result.GetRawResponse().IsError)
             {
-                return Task.FromResult(true);
+                return true;
             }
 
-            return Task.FromResult(false);
+            return false;
         }
     }
 }
